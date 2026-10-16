@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#faf8ef" />
+  <title>2048 Classic — Android Touch Edition</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #faf8ef;
+      color: #776e65;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      overscroll-behavior: none;
+    }
+    .board-container {
+      background-color: #bbada0;
+      border-radius: 12px;
+      position: relative;
+      touch-action: none;
+      aspect-ratio: 1 / 1;
+      width: 100%;
+      max-width: 420px;
+      margin: 0 auto;
+      padding: 10px;
+      box-shadow: 0 4px 14px rgba(119, 110, 101, 0.14);
+    }
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 8px;
+      touch-action: none;
+    }
+    .score-box {
+      background-color: #bbada0;
+      color: #eee4da;
+      border-radius: 8px;
+      padding: 6px 14px;
+      text-align: center;
+      min-width: 78px;
+    }
+    .btn-classic {
+      background-color: #8f7a66;
+      color: #f9f6f2;
+      border-radius: 8px;
+      font-weight: 700;
+      transition: transform 0.08s ease, background-color 0.15s ease, opacity 0.15s ease;
+    }
+    .btn-classic:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+    .btn-classic:disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
+    }
+    .btn-editor {
+      background-color: #edc22e;
+      color: #f9f6f2;
+      border-radius: 8px;
+      font-weight: 800;
+      text-shadow: 0 1px 1px rgba(0,0,0,0.12);
+      transition: transform 0.08s ease, filter 0.15s ease;
+    }
+    .btn-editor:active {
+      transform: scale(0.96);
+    }
+    .editor-cell {
+      aspect-ratio: 1 / 1;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .editor-cell.selected {
+      outline: 3.5px solid #2563eb;
+      outline-offset: 2px;
+      z-index: 2;
+      transform: scale(1.03);
+    }
+    .tile-chip {
+      border-radius: 6px;
+      font-weight: 800;
+      padding: 8px 6px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.08s ease, box-shadow 0.1s ease;
+      font-size: 0.82rem;
+      line-height: 1.1;
+    }
+    .tile-chip:active {
+      transform: scale(0.94);
+    }
+    input[type="number"] {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start py-4 px-3 sm:py-6">
+
+  <div class="w-full max-w-[420px] flex flex-col gap-3">
+    <!-- Top Header: Title + Score & Best -->
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-baseline gap-2">
+        <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-[#776e65] leading-none">2048</h1>
+        <span id="saveIndicator" class="text-[11px] font-semibold text-[#8f7a66] bg-[#ede0c8] px-2 py-0.5 rounded-full">Saved</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <div class="score-box">
+          <div class="text-[10px] font-bold uppercase tracking-wider leading-tight">Score</div>
+          <div id="scoreDisplay" class="text-lg sm:text-xl font-extrabold text-white leading-tight">0</div>
+        </div>
+        <div class="score-box">
+          <div class="text-[10px] font-bold uppercase tracking-wider leading-tight">Best</div>
+          <div id="bestDisplay" class="text-lg sm:text-xl font-extrabold text-white leading-tight">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Toolbar: Single Undo, Board Editor, New Game, Sound -->
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-1.5 flex-1">
+        <button id="undoBtn" type="button" class="btn-classic px-3 py-2.5 text-xs sm:text-sm flex items-center justify-center gap-1.5 flex-1" disabled title="Single step undo">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+          </svg>
+          <span>Undo</span>
+        </button>
+
+        <button id="openEditorBtn" type="button" class="btn-editor px-3 py-2.5 text-xs sm:text-sm flex items-center justify-center gap-1.5 flex-1" title="Manually set board tiles and score">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          <span>Board Editor</span>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-1.5">
+        <button id="newGameBtn" type="button" class="btn-classic px-3 py-2.5 text-xs sm:text-sm">
+          New Game
+        </button>
+        <button id="muteBtn" type="button" class="btn-classic p-2.5 text-xs sm:text-sm" aria-label="Toggle Sound" title="Toggle Sound">
+          <svg id="soundOnIcon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+          </svg>
+          <svg id="soundOffIcon" class="w-4 h-4 hidden" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main 4x4 Game Board (Canvas with Touch Swipe) -->
+    <div id="boardWrapper" class="board-container">
+      <canvas id="gameCanvas" width="400" height="400"></canvas>
+
+      <!-- Game Over / Win Overlay -->
+      <div id="gameOverlay" class="hidden absolute inset-0 bg-[#faf8ef]/85 backdrop-blur-[2px] rounded-xl flex flex-col items-center justify-center p-6 text-center z-10">
+        <h2 id="overlayTitle" class="text-3xl font-black text-[#776e65] mb-1">Game Over!</h2>
+        <p id="overlaySub" class="text-sm text-[#776e65] mb-4">No more moves available.</p>
+        <div class="flex flex-wrap items-center justify-center gap-2">
+          <button id="overlayUndoBtn" type="button" class="btn-classic px-4 py-2.5 text-sm">
+            Undo Last Move
+          </button>
+          <button id="overlayKeepGoingBtn" type="button" class="btn-editor px-4 py-2.5 text-sm hidden">
+            Keep Playing
+          </button>
+          <button id="overlayTryAgainBtn" type="button" class="btn-classic px-4 py-2.5 text-sm">
+            Try Again
+          </button>
+        </div>
+      </div>
+
+      <!-- New Game Confirmation Modal inside Board -->
+      <div id="confirmModal" class="hidden absolute inset-0 bg-[#faf8ef]/90 backdrop-blur-[2px] rounded-xl flex flex-col items-center justify-center p-6 text-center z-20">
+        <h3 class="text-xl font-extrabold text-[#776e65] mb-2">Start a New Game?</h3>
+        <p class="text-xs text-[#776e65] mb-4">Your current board progress will be reset.</p>
+        <div class="flex items-center gap-2.5">
+          <button id="cancelNewGameBtn" type="button" class="px-4 py-2 rounded-lg font-bold text-sm bg-[#cdc1b4] text-[#776e65]">
+            Cancel
+          </button>
+          <button id="confirmNewGameBtn" type="button" class="btn-classic px-4 py-2 text-sm">
+            Start New
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compact Touch Pad (Optional one-thumb tap controls in addition to swipe) -->
+    <div class="flex items-center justify-between bg-[#eee4da] rounded-xl px-3 py-2 text-xs text-[#776e65]">
+      <div class="leading-snug">
+        <span class="font-bold">Swipe anywhere</span> on the board or tap arrows
+        <div class="text-[11px] opacity-80">Spawn rate: 90% [2] · 10% [4] · Auto-saves every move</div>
+      </div>
+      <div class="grid grid-cols-3 gap-1 shrink-0 ml-2">
+        <div></div>
+        <button id="dirUpBtn" type="button" class="w-8 h-7 rounded bg-[#bbada0] text-white font-bold flex items-center justify-center active:scale-95" aria-label="Move Up">▲</button>
+        <div></div>
+        <button id="dirLeftBtn" type="button" class="w-8 h-7 rounded bg-[#bbada0] text-white font-bold flex items-center justify-center active:scale-95" aria-label="Move Left">◀</button>
+        <button id="dirDownBtn" type="button" class="w-8 h-7 rounded bg-[#bbada0] text-white font-bold flex items-center justify-center active:scale-95" aria-label="Move Down">▼</button>
+        <button id="dirRightBtn" type="button" class="w-8 h-7 rounded bg-[#bbada0] text-white font-bold flex items-center justify-center active:scale-95" aria-label="Move Right">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOARD EDITOR MODAL -->
+  <div id="editorModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-[2px] z-50 flex items-center justify-center p-3 overflow-y-auto">
+    <div class="bg-[#faf8ef] border-2 border-[#bbada0] rounded-2xl w-full max-w-[420px] p-4 shadow-2xl flex flex-col gap-3 my-auto">
+      <div class="flex items-center justify-between border-b border-[#e2d6c5] pb-2">
+        <div>
+          <h2 class="text-lg font-black text-[#776e65]">Board Editor</h2>
+          <p class="text-xs text-[#8f7a66]">Tap a cell on the 4×4 grid, then tap a number below to place it.</p>
+        </div>
+        <button id="closeEditorTopBtn" type="button" class="w-8 h-8 rounded-lg bg-[#ede0c8] text-[#776e65] font-bold flex items-center justify-center" aria-label="Close Editor">✕</button>
+      </div>
+
+      <!-- Manual Score Editor -->
+      <div class="grid grid-cols-2 gap-2.5 bg-[#eee4da] p-2.5 rounded-xl">
+        <div>
+          <label for="editorScoreInput" class="block text-[11px] font-extrabold uppercase tracking-wider text-[#776e65] mb-1">Manual Score</label>
+          <input id="editorScoreInput" type="number" min="0" step="1" class="w-full px-2.5 py-1.5 rounded-lg border border-[#bbada0] bg-white text-[#776e65] font-extrabold text-sm focus:outline-none focus:ring-2 focus:ring-[#edc22e]" placeholder="0" />
+        </div>
+        <div>
+          <label for="editorBestInput" class="block text-[11px] font-extrabold uppercase tracking-wider text-[#776e65] mb-1">Best Score</label>
+          <input id="editorBestInput" type="number" min="0" step="1" class="w-full px-2.5 py-1.5 rounded-lg border border-[#bbada0] bg-white text-[#776e65] font-extrabold text-sm focus:outline-none focus:ring-2 focus:ring-[#edc22e]" placeholder="0" />
+        </div>
+      </div>
+
+      <!-- Interactive 4x4 Editor Grid -->
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <span id="selectedCellLabel" class="text-xs font-extrabold text-[#2563eb]">Selected: Row 4, Col 1 (Bottom-Left)</span>
+          <button id="clearBoardEditorBtn" type="button" class="text-xs font-bold px-2.5 py-1 rounded bg-[#ede0c8] text-[#776e65] active:scale-95">
+            Clear All Cells
+          </button>
+        </div>
+        <div id="editorGrid" class="grid grid-cols-4 gap-2 bg-[#bbada0] p-2.5 rounded-xl">
+          <!-- Populated dynamically by JS -->
+        </div>
+      </div>
+
+      <!-- Quick Number Palette -->
+      <div>
+        <div class="text-[11px] font-extrabold uppercase tracking-wider text-[#776e65] mb-1.5">
+          Tap a value to set selected cell:
+        </div>
+        <div id="editorPalette" class="grid grid-cols-6 gap-1.5">
+          <!-- Populated dynamically by JS -->
+        </div>
+      </div>
+
+      <!-- Custom Tile Value Input -->
+      <div class="flex items-center gap-2 bg-[#eee4da] p-2 rounded-xl">
+        <label for="customTileInput" class="text-xs font-bold text-[#776e65] shrink-0">Custom Tile:</label>
+        <input id="customTileInput" type="number" min="0" step="2" class="w-full px-2.5 py-1 rounded-lg border border-[#bbada0] bg-white text-[#776e65] font-bold text-xs focus:outline-none" placeholder="e.g. 16384 or 131072" />
+        <button id="setCustomTileBtn" type="button" class="btn-classic px-3 py-1.5 text-xs shrink-0">
+          Set Cell
+        </button>
+      </div>
+
+      <!-- Save / Cancel Editor Actions -->
+      <div class="flex items-center gap-2 pt-1">
+        <button id="cancelEditorBtn" type="button" class="flex-1 py-2.5 rounded-xl font-bold text-sm bg-[#cdc1b4] text-[#776e65]">
+          Cancel
+        </button>
+        <button id="saveEditorBtn" type="button" class="flex-1 py-2.5 rounded-xl font-extrabold text-sm bg-[#8f7a66] text-white shadow">
+          Apply Board & Score
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = 'classic_2048_android_saved_state_v1';
+
+      // Classic 2048 tile color palette (including 4096, 8192, 16384, 32768, 65536+)
+      const TILE_STYLES = {
+        0:     { bg: '#cdc1b4', fg: '#776e65' },
+        2:     { bg: '#eee4da', fg: '#776e65' },
+        4:     { bg: '#ede0c8', fg: '#776e65' },
+        8:     { bg: '#f2b179', fg: '#f9f6f2' },
+        16:    { bg: '#f59563', fg: '#f9f6f2' },
+        32:    { bg: '#f67c5f', fg: '#f9f6f2' },
+        64:    { bg: '#f65e3b', fg: '#f9f6f2' },
+        128:   { bg: '#edcf72', fg: '#f9f6f2' },
+        256:   { bg: '#edcc61', fg: '#f9f6f2' },
+        512:   { bg: '#edc850', fg: '#f9f6f2' },
+        1024:  { bg: '#edc53f', fg: '#f9f6f2' },
+        2048:  { bg: '#edc22e', fg: '#f9f6f2' },
+        4096:  { bg: '#3c3a32', fg: '#f9f6f2' },
+        8192:  { bg: '#2b2922', fg: '#f9f6f2' },
+        16384:  { bg: '#1f4e78', fg: '#f9f6f2' },
+        32768:  { bg: '#2e5930', fg: '#f9f6f2' },
+        65536:  { bg: '#5b2c6f', fg: '#f9f6f2' },
+        131072: { bg: '#991b1b', fg: '#fef08a' }
+      };
+
+      const PALETTE_VALUES = [
+        0, 2, 4, 8, 16, 32,
+        64, 128, 256, 512, 1024, 2048,
+        4096, 8192, 16384, 32768, 65536, 131072
+      ];
+
+      function getTileStyle(val) {
+        if (TILE_STYLES[val]) return TILE_STYLES[val];
+        return { bg: '#1c1917', fg: '#f9f6f2' };
+      }
+
+      // Game State
+      let grid = createEmptyGrid();
+      let score = 0;
+      let bestScore = 0;
+      let prevGrid = null;      // Single-step undo board
+      let prevScore = null;     // Single-step undo score
+      let hasWon2048 = false;
+      let keepPlaying = false;
+      let isGameOver = false;
+      let isMuted = false;
+
+      // Animation tracking for sliding, merging, and newly spawned tiles
+      const SLIDE_DURATION = 95; // ms for tiles to slide and collide
+      const POP_DURATION = 140;  // ms for merged tile bounce
+      let slideAnim = null;      // { startTime: number, moves: Array<{val, fromR, fromC, toR, toC}> }
+      let mergePopCells = {};    // key "r,c" -> startTime
+      let spawnPopCells = {};    // key "r,c" -> startTime
+      let popCells = {};         // legacy alias
+
+      // Editor State
+      let editorDraftGrid = createEmptyGrid();
+      let selectedCell = { r: 3, c: 0 }; // Default to bottom-left (down left side) as in user's example!
+
+      // Web Audio API simple synth for move/merge feedback
+      let audioCtx = null;
+      function initAudio() {
+        if (!audioCtx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            try {
+              audioCtx = new AudioContextClass();
+            } catch (e) {}
+          }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(function () {});
+        }
+      }
+
+      function playTone(freq, durationMs, type) {
+        if (isMuted) return;
+        initAudio();
+        if (!audioCtx) return;
+        try {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = type || 'sine';
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+          gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + durationMs / 1000);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + durationMs / 1000);
+        } catch (e) {}
+      }
+
+      function createEmptyGrid() {
+        return [
+          [0, 0, 0, 0],
+          [0, 0, 0, 0],
+          [0, 0, 0, 0],
+          [0, 0, 0, 0]
+        ];
+      }
+
+      function cloneGrid(g) {
+        return g.map(function (row) { return row.slice(); });
+      }
+
+      // Classic 2048 spawn rate: 90% chance of 2, 10% chance of 4
+      function spawnRandomTile() {
+        const emptyCells = [];
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            if (grid[r][c] === 0) {
+              emptyCells.push({ r: r, c: c });
+            }
+          }
+        }
+        if (emptyCells.length === 0) return null;
+        const chosen = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+        const value = Math.random() < 0.9 ? 2 : 4;
+        grid[chosen.r][chosen.c] = value;
+        spawnPopCells[chosen.r + ',' + chosen.c] = performance.now() + (slideAnim ? SLIDE_DURATION : 0);
+        return chosen;
+      }
+
+      // Persistence in localStorage
+      function saveGameState() {
+        try {
+          const payload = {
+            grid: grid,
+            score: score,
+            bestScore: bestScore,
+            prevGrid: prevGrid,
+            prevScore: prevScore,
+            hasWon2048: hasWon2048,
+            keepPlaying: keepPlaying,
+            isGameOver: isGameOver,
+            isMuted: isMuted
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+          const badge = document.getElementById('saveIndicator');
+          if (badge) {
+            badge.textContent = 'Saved';
+          }
+        } catch (e) {}
+      }
+
+      function loadGameState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return false;
+          const data = JSON.parse(raw);
+          if (!data || !Array.isArray(data.grid) || data.grid.length !== 4) return false;
+          grid = data.grid.map(function (row) {
+            return Array.isArray(row) && row.length === 4
+              ? row.map(function (v) { return Math.max(0, parseInt(v, 10) || 0); })
+              : [0, 0, 0, 0];
+          });
+          score = Math.max(0, parseInt(data.score, 10) || 0);
+          bestScore = Math.max(score, parseInt(data.bestScore, 10) || 0);
+          prevGrid = (Array.isArray(data.prevGrid) && data.prevGrid.length === 4) ? data.prevGrid : null;
+          prevScore = (typeof data.prevScore === 'number') ? data.prevScore : null;
+          hasWon2048 = Boolean(data.hasWon2048);
+          keepPlaying = Boolean(data.keepPlaying);
+          isGameOver = Boolean(data.isGameOver);
+          isMuted = Boolean(data.isMuted);
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      function startNewGame() {
+        grid = createEmptyGrid();
+        score = 0;
+        prevGrid = null;
+        prevScore = null;
+        hasWon2048 = false;
+        keepPlaying = false;
+        isGameOver = false;
+        slideAnim = null;
+        mergePopCells = {};
+        spawnPopCells = {};
+        popCells = {};
+        spawnRandomTile();
+        spawnRandomTile();
+        saveGameState();
+        updateUI();
+        requestDraw();
+      }
+
+      // Slide and merge a single row of 4 numbers to the left, tracking exact tile trajectories for merge animation
+      function slideAndMergeLine(line) {
+        const nonZero = [];
+        for (let idx = 0; idx < 4; idx++) {
+          if (line[idx] !== 0) {
+            nonZero.push({ val: line[idx], fromIdx: idx });
+          }
+        }
+        const result = [];
+        let gainedScore = 0;
+        const mergedIndices = [];
+        const movements = []; // { val, fromIdx, toIdx, merged }
+
+        let i = 0;
+        while (i < nonZero.length) {
+          const destIdx = result.length;
+          if (i + 1 < nonZero.length && nonZero[i].val === nonZero[i + 1].val) {
+            const mergedVal = nonZero[i].val * 2;
+            result.push(mergedVal);
+            gainedScore += mergedVal;
+            mergedIndices.push(destIdx);
+            movements.push({ val: nonZero[i].val, fromIdx: nonZero[i].fromIdx, toIdx: destIdx, merged: true });
+            movements.push({ val: nonZero[i + 1].val, fromIdx: nonZero[i + 1].fromIdx, toIdx: destIdx, merged: true });
+            i += 2;
+          } else {
+            result.push(nonZero[i].val);
+            movements.push({ val: nonZero[i].val, fromIdx: nonZero[i].fromIdx, toIdx: destIdx, merged: false });
+            i += 1;
+          }
+        }
+        while (result.length < 4) {
+          result.push(0);
+        }
+        return {
+          line: result,
+          gainedScore: gainedScore,
+          mergedIndices: mergedIndices,
+          movements: movements
+        };
+      }
+
+      function canMove() {
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            if (grid[r][c] === 0) return true;
+            if (c < 3 && grid[r][c] === grid[r][c + 1]) return true;
+            if (r < 3 && grid[r][c] === grid[r + 1][c]) return true;
+          }
+        }
+        return false;
+      }
+
+      // Direction: 'left', 'right', 'up', 'down'
+      function move(direction) {
+        if (!document.getElementById('editorModal').classList.contains('hidden')) return;
+        if (!document.getElementById('confirmModal').classList.contains('hidden')) return;
+        if (isGameOver) return;
+        if (hasWon2048 && !keepPlaying) return;
+
+        const snapshotGrid = cloneGrid(grid);
+        const snapshotScore = score;
+
+        let moved = false;
+        let totalGained = 0;
+        const newMergePopCells = {};
+        const slideMoves = [];
+        const now = performance.now();
+
+        function mapLineCoords(lineIdx, posIdx) {
+          if (direction === 'left')  return { r: lineIdx, c: posIdx };
+          if (direction === 'right') return { r: lineIdx, c: 3 - posIdx };
+          if (direction === 'up')    return { r: posIdx, c: lineIdx };
+          return { r: 3 - posIdx, c: lineIdx };
+        }
+
+        for (let i = 0; i < 4; i++) {
+          let currentLine = [];
+          for (let j = 0; j < 4; j++) {
+            const pt = mapLineCoords(i, j);
+            currentLine.push(grid[pt.r][pt.c]);
+          }
+
+          const res = slideAndMergeLine(currentLine);
+          totalGained += res.gainedScore;
+
+          for (let m = 0; m < res.movements.length; m++) {
+            const mv = res.movements[m];
+            const fromPt = mapLineCoords(i, mv.fromIdx);
+            const toPt = mapLineCoords(i, mv.toIdx);
+            slideMoves.push({
+              val: mv.val,
+              fromR: fromPt.r,
+              fromC: fromPt.c,
+              toR: toPt.r,
+              toC: toPt.c,
+              merged: mv.merged
+            });
+          }
+
+          for (let j = 0; j < 4; j++) {
+            const pt = mapLineCoords(i, j);
+            if (grid[pt.r][pt.c] !== res.line[j]) {
+              moved = true;
+            }
+            grid[pt.r][pt.c] = res.line[j];
+            if (res.mergedIndices.indexOf(j) !== -1) {
+              newMergePopCells[pt.r + ',' + pt.c] = now + SLIDE_DURATION;
+            }
+          }
+        }
+
+        if (!moved) return;
+
+        // Save single-undo snapshot (only the immediate previous turn)
+        prevGrid = snapshotGrid;
+        prevScore = snapshotScore;
+
+        score += totalGained;
+        if (score > bestScore) {
+          bestScore = score;
+        }
+
+        slideAnim = { startTime: now, moves: slideMoves };
+        mergePopCells = newMergePopCells;
+        spawnPopCells = {};
+        spawnRandomTile();
+
+        if (totalGained > 0) {
+          playTone(420, 90, 'triangle');
+        } else {
+          playTone(240, 60, 'sine');
+        }
+
+        // Check if 2048 reached for the first time
+        if (!hasWon2048) {
+          for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 4; c++) {
+              if (grid[r][c] === 2048) {
+                hasWon2048 = true;
+              }
+            }
+          }
+        }
+
+        isGameOver = !canMove();
+        saveGameState();
+        updateUI();
+        requestDraw();
+      }
+
+      // Single Undo mechanism
+      function performUndo() {
+        if (!prevGrid || prevScore === null) return;
+        grid = cloneGrid(prevGrid);
+        score = prevScore;
+        // Consume the single undo so user can only undo 1 step (like classic single undo)
+        prevGrid = null;
+        prevScore = null;
+        isGameOver = false;
+        slideAnim = null;
+        mergePopCells = {};
+        spawnPopCells = {};
+        popCells = {};
+        playTone(300, 70, 'sine');
+        saveGameState();
+        updateUI();
+        requestDraw();
+      }
+
+      function updateUI() {
+        document.getElementById('scoreDisplay').textContent = score.toLocaleString();
+        document.getElementById('bestDisplay').textContent = bestScore.toLocaleString();
+
+        const undoBtn = document.getElementById('undoBtn');
+        const hasUndo = Boolean(prevGrid && prevScore !== null);
+        undoBtn.disabled = !hasUndo;
+
+        const overlay = document.getElementById('gameOverlay');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlaySub = document.getElementById('overlaySub');
+        const overlayKeepGoingBtn = document.getElementById('overlayKeepGoingBtn');
+        const overlayUndoBtn = document.getElementById('overlayUndoBtn');
+
+        if (hasWon2048 && !keepPlaying) {
+          overlay.classList.remove('hidden');
+          overlayTitle.textContent = 'You reached 2048!';
+          overlaySub.textContent = 'Keep playing to reach 4096, 8192, 16384 and beyond.';
+          overlayKeepGoingBtn.classList.remove('hidden');
+          overlayUndoBtn.classList.toggle('hidden', !hasUndo);
+        } else if (isGameOver) {
+          overlay.classList.remove('hidden');
+          overlayTitle.textContent = 'Game Over!';
+          overlaySub.textContent = 'No valid moves left on the board.';
+          overlayKeepGoingBtn.classList.add('hidden');
+          overlayUndoBtn.classList.toggle('hidden', !hasUndo);
+        } else {
+          overlay.classList.add('hidden');
+        }
+
+        document.getElementById('soundOnIcon').classList.toggle('hidden', isMuted);
+        document.getElementById('soundOffIcon').classList.toggle('hidden', !isMuted);
+      }
+
+      // Canvas Rendering
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      let animFrameId = null;
+
+      function resizeCanvas() {
+        const wrapper = document.getElementById('boardWrapper');
+        const rect = wrapper.getBoundingClientRect();
+        const innerSize = Math.max(240, Math.floor(rect.width - 20));
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = innerSize * dpr;
+        canvas.height = innerSize * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawBoard(innerSize);
+      }
+
+      function roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+      }
+
+      function drawSingleTile(cx, cy, cellSize, val, scale) {
+        const style = getTileStyle(val);
+        ctx.save();
+        ctx.translate(cx, cy);
+        if (scale !== 1) {
+          ctx.scale(scale, scale);
+        }
+
+        ctx.fillStyle = style.bg;
+        roundRect(ctx, -cellSize / 2, -cellSize / 2, cellSize, cellSize, 7);
+        ctx.fill();
+
+        // Dynamic font size so 16384, 32768, 65536, and 131072 fit cleanly
+        const digits = String(val).length;
+        let fontFactor = 0.44;
+        if (digits === 3) fontFactor = 0.36;
+        else if (digits === 4) fontFactor = 0.30;
+        else if (digits === 5) fontFactor = 0.24;
+        else if (digits >= 6) fontFactor = 0.20;
+
+        const fontSize = Math.floor(cellSize * fontFactor);
+        ctx.fillStyle = style.fg;
+        ctx.font = '800 ' + fontSize + 'px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(val), 0, 1);
+        ctx.restore();
+      }
+
+      function drawBoard(size) {
+        if (!size) {
+          const dpr = window.devicePixelRatio || 1;
+          size = canvas.width / dpr;
+        }
+        ctx.clearRect(0, 0, size, size);
+
+        // Background
+        ctx.fillStyle = '#bbada0';
+        roundRect(ctx, 0, 0, size, size, 8);
+        ctx.fill();
+
+        const gap = Math.max(8, Math.floor(size * 0.028));
+        const cellSize = (size - gap * 5) / 4;
+        const now = performance.now();
+        let needsMoreFrames = false;
+
+        // 1. Always draw the 4x4 empty cell slots first
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            const x = gap + c * (cellSize + gap);
+            const y = gap + r * (cellSize + gap);
+            ctx.fillStyle = '#cdc1b4';
+            roundRect(ctx, x, y, cellSize, cellSize, 7);
+            ctx.fill();
+          }
+        }
+
+        // 2. If a swipe slide animation is in progress, draw sliding tiles moving to their targets
+        if (slideAnim) {
+          const elapsed = now - slideAnim.startTime;
+          if (elapsed < SLIDE_DURATION) {
+            needsMoreFrames = true;
+            const rawT = Math.max(0, elapsed / SLIDE_DURATION);
+            // Smooth ease-out cubic so tiles visibly glide and collide
+            const easeT = 1 - Math.pow(1 - rawT, 3);
+
+            for (let i = 0; i < slideAnim.moves.length; i++) {
+              const mv = slideAnim.moves[i];
+              const startX = gap + mv.fromC * (cellSize + gap) + cellSize / 2;
+              const startY = gap + mv.fromR * (cellSize + gap) + cellSize / 2;
+              const endX = gap + mv.toC * (cellSize + gap) + cellSize / 2;
+              const endY = gap + mv.toR * (cellSize + gap) + cellSize / 2;
+              const curX = startX + (endX - startX) * easeT;
+              const curY = startY + (endY - startY) * easeT;
+              drawSingleTile(curX, curY, cellSize, mv.val, 1);
+            }
+
+            animFrameId = requestAnimationFrame(function () {
+              drawBoard(size);
+            });
+            return;
+          } else {
+            slideAnim = null;
+          }
+        }
+
+        // 3. Draw settled tiles with merge-combine bounce and new-tile spawn pop
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            const val = grid[r][c];
+            if (val <= 0) continue;
+
+            const x = gap + c * (cellSize + gap);
+            const y = gap + r * (cellSize + gap);
+            const cx = x + cellSize / 2;
+            const cy = y + cellSize / 2;
+            const key = r + ',' + c;
+            let scale = 1;
+
+            if (mergePopCells[key] !== undefined) {
+              const elapsed = now - mergePopCells[key];
+              if (elapsed < 0) {
+                needsMoreFrames = true;
+              } else if (elapsed < POP_DURATION) {
+                needsMoreFrames = true;
+                const t = elapsed / POP_DURATION;
+                // Classic 2048 merge pop: swells up to 1.22x then settles back to 1.0x
+                scale = 1 + 0.22 * Math.sin(t * Math.PI);
+              } else {
+                delete mergePopCells[key];
+              }
+            } else if (spawnPopCells[key] !== undefined) {
+              const elapsed = now - spawnPopCells[key];
+              if (elapsed < 0) {
+                needsMoreFrames = true;
+                scale = 0.01;
+              } else if (elapsed < 110) {
+                needsMoreFrames = true;
+                const t = elapsed / 110;
+                scale = 0.25 + 0.75 * (1 - Math.pow(1 - t, 2));
+              } else {
+                delete spawnPopCells[key];
+              }
+            }
+
+            drawSingleTile(cx, cy, cellSize, val, scale);
+          }
+        }
+
+        if (needsMoreFrames) {
+          animFrameId = requestAnimationFrame(function () {
+            drawBoard(size);
+          });
+        } else {
+          animFrameId = null;
+        }
+      }
+
+      function requestDraw() {
+        if (animFrameId) cancelAnimationFrame(animFrameId);
+        animFrameId = requestAnimationFrame(function () {
+          drawBoard();
+        });
+      }
+
+      // Touch Swipe Handling on Board
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let touchActive = false;
+
+      const boardWrapper = document.getElementById('boardWrapper');
+      boardWrapper.addEventListener('touchstart', function (e) {
+        if (e.touches.length !== 1) return;
+        // Let buttons inside overlays handle their own taps
+        if (e.target.tagName === 'BUTTON') return;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchActive = true;
+      }, { passive: true });
+
+      boardWrapper.addEventListener('touchmove', function (e) {
+        if (!touchActive) return;
+        if (e.cancelable) e.preventDefault();
+      }, { passive: false });
+
+      boardWrapper.addEventListener('touchend', function (e) {
+        if (!touchActive || e.changedTouches.length === 0) return;
+        touchActive = false;
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        const absX = Math.abs(dx);
+        const absY = Math.abs(dy);
+        const threshold = 24;
+        if (Math.max(absX, absY) < threshold) return;
+        if (absX > absY) {
+          move(dx > 0 ? 'right' : 'left');
+        } else {
+          move(dy > 0 ? 'down' : 'up');
+        }
+      }, { passive: true });
+
+      // Keyboard Support (Arrow keys + WASD)
+      window.addEventListener('keydown', function (e) {
+        if (!document.getElementById('editorModal').classList.contains('hidden')) return;
+        if (e.target.tagName === 'INPUT') return;
+        const keyMap = {
+          ArrowLeft: 'left', KeyA: 'left',
+          ArrowRight: 'right', KeyD: 'right',
+          ArrowUp: 'up', KeyW: 'up',
+          ArrowDown: 'down', KeyS: 'down'
+        };
+        if (keyMap[e.code]) {
+          e.preventDefault();
+          move(keyMap[e.code]);
+        } else if ((e.code === 'KeyZ' && (e.ctrlKey || e.metaKey)) || e.code === 'Backspace') {
+          e.preventDefault();
+          performUndo();
+        }
+      });
+
+      // BOARD EDITOR LOGIC
+      function getPositionCornerHint(r, c) {
+        if (r === 0 && c === 0) return ' (Top-Left)';
+        if (r === 0 && c === 3) return ' (Top-Right)';
+        if (r === 3 && c === 0) return ' (Bottom-Left)';
+        if (r === 3 && c === 3) return ' (Bottom-Right)';
+        return '';
+      }
+
+      function renderEditorGrid() {
+        const container = document.getElementById('editorGrid');
+        container.innerHTML = '';
+
+        const label = document.getElementById('selectedCellLabel');
+        label.textContent = 'Selected: Row ' + (selectedCell.r + 1) + ', Col ' + (selectedCell.c + 1) +
+          getPositionCornerHint(selectedCell.r, selectedCell.c);
+
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            const val = editorDraftGrid[r][c];
+            const style = getTileStyle(val);
+            const cellBtn = document.createElement('button');
+            cellBtn.type = 'button';
+            cellBtn.className = 'editor-cell' + (selectedCell.r === r && selectedCell.c === c ? ' selected' : '');
+            cellBtn.style.backgroundColor = style.bg;
+            cellBtn.style.color = style.fg;
+
+            const posTag = document.createElement('span');
+            posTag.className = 'text-[9px] font-semibold opacity-60 absolute top-1 left-1.5';
+            posTag.textContent = (r === 3 && c === 0) ? 'BL' : (r + 1) + ',' + (c + 1);
+            cellBtn.appendChild(posTag);
+
+            const valSpan = document.createElement('span');
+            const digits = String(val).length;
+            valSpan.className = digits >= 6 ? 'text-[11px] font-black' : (digits === 5 ? 'text-xs font-black' : (digits === 4 ? 'text-sm font-black' : 'text-base font-black'));
+            valSpan.textContent = val === 0 ? '·' : String(val);
+            cellBtn.appendChild(valSpan);
+
+            cellBtn.addEventListener('click', function () {
+              selectedCell = { r: r, c: c };
+              document.getElementById('customTileInput').value = editorDraftGrid[r][c] > 0 ? String(editorDraftGrid[r][c]) : '';
+              renderEditorGrid();
+            });
+
+            container.appendChild(cellBtn);
+          }
+        }
+      }
+
+      function renderEditorPalette() {
+        const palette = document.getElementById('editorPalette');
+        palette.innerHTML = '';
+
+        PALETTE_VALUES.forEach(function (val) {
+          const style = getTileStyle(val);
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'tile-chip border border-black/10';
+          btn.style.backgroundColor = style.bg;
+          btn.style.color = style.fg;
+          btn.textContent = val === 0 ? 'Empty' : String(val);
+
+          btn.addEventListener('click', function () {
+            editorDraftGrid[selectedCell.r][selectedCell.c] = val;
+            document.getElementById('customTileInput').value = val > 0 ? String(val) : '';
+            renderEditorGrid();
+          });
+
+          palette.appendChild(btn);
+        });
+      }
+
+      function openBoardEditor() {
+        editorDraftGrid = cloneGrid(grid);
+        document.getElementById('editorScoreInput').value = String(score);
+        document.getElementById('editorBestInput').value = String(bestScore);
+        document.getElementById('customTileInput').value =
+          editorDraftGrid[selectedCell.r][selectedCell.c] > 0
+            ? String(editorDraftGrid[selectedCell.r][selectedCell.c])
+            : '';
+        renderEditorGrid();
+        renderEditorPalette();
+        document.getElementById('editorModal').classList.remove('hidden');
+      }
+
+      function closeBoardEditor() {
+        document.getElementById('editorModal').classList.add('hidden');
+      }
+
+      function applyBoardEditor() {
+        grid = cloneGrid(editorDraftGrid);
+
+        // Ensure at least one tile exists on the board if the user cleared everything
+        let anyTile = false;
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            if (grid[r][c] > 0) anyTile = true;
+          }
+        }
+        if (!anyTile) {
+          spawnRandomTile();
+          spawnRandomTile();
+        }
+
+        const parsedScore = Math.max(0, parseInt(document.getElementById('editorScoreInput').value, 10) || 0);
+        const parsedBest = Math.max(0, parseInt(document.getElementById('editorBestInput').value, 10) || 0);
+        score = parsedScore;
+        bestScore = Math.max(parsedScore, parsedBest);
+
+        // Reset single-step undo on manual board edit
+        prevGrid = null;
+        prevScore = null;
+
+        // If board already has >= 2048, allow continuous play without blocking modal
+        let maxTile = 0;
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            if (grid[r][c] > maxTile) maxTile = grid[r][c];
+          }
+        }
+        if (maxTile >= 2048) {
+          hasWon2048 = true;
+          keepPlaying = true;
+        }
+        isGameOver = !canMove();
+        slideAnim = null;
+        mergePopCells = {};
+        spawnPopCells = {};
+        popCells = {};
+
+        saveGameState();
+        closeBoardEditor();
+        updateUI();
+        requestDraw();
+      }
+
+      // Wire up UI Buttons
+      document.getElementById('undoBtn').addEventListener('click', performUndo);
+      document.getElementById('overlayUndoBtn').addEventListener('click', performUndo);
+
+      document.getElementById('overlayKeepGoingBtn').addEventListener('click', function () {
+        keepPlaying = true;
+        saveGameState();
+        updateUI();
+      });
+
+      document.getElementById('overlayTryAgainBtn').addEventListener('click', function () {
+        startNewGame();
+      });
+
+      document.getElementById('newGameBtn').addEventListener('click', function () {
+        document.getElementById('confirmModal').classList.remove('hidden');
+      });
+
+      document.getElementById('cancelNewGameBtn').addEventListener('click', function () {
+        document.getElementById('confirmModal').classList.add('hidden');
+      });
+
+      document.getElementById('confirmNewGameBtn').addEventListener('click', function () {
+        document.getElementById('confirmModal').classList.add('hidden');
+        startNewGame();
+      });
+
+      document.getElementById('muteBtn').addEventListener('click', function () {
+        isMuted = !isMuted;
+        saveGameState();
+        updateUI();
+      });
+
+      // Directional buttons
+      document.getElementById('dirUpBtn').addEventListener('click', function () { move('up'); });
+      document.getElementById('dirDownBtn').addEventListener('click', function () { move('down'); });
+      document.getElementById('dirLeftBtn').addEventListener('click', function () { move('left'); });
+      document.getElementById('dirRightBtn').addEventListener('click', function () { move('right'); });
+
+      // Editor modal buttons
+      document.getElementById('openEditorBtn').addEventListener('click', openBoardEditor);
+      document.getElementById('closeEditorTopBtn').addEventListener('click', closeBoardEditor);
+      document.getElementById('cancelEditorBtn').addEventListener('click', closeBoardEditor);
+      document.getElementById('saveEditorBtn').addEventListener('click', applyBoardEditor);
+
+      document.getElementById('clearBoardEditorBtn').addEventListener('click', function () {
+        editorDraftGrid = createEmptyGrid();
+        document.getElementById('customTileInput').value = '';
+        renderEditorGrid();
+      });
+
+      document.getElementById('setCustomTileBtn').addEventListener('click', function () {
+        const val = Math.max(0, parseInt(document.getElementById('customTileInput').value, 10) || 0);
+        editorDraftGrid[selectedCell.r][selectedCell.c] = val;
+        renderEditorGrid();
+      });
+
+      window.addEventListener('resize', resizeCanvas);
+
+      window.onload = function () {
+        const loaded = loadGameState();
+        if (!loaded) {
+          startNewGame();
+        } else {
+          updateUI();
+        }
+        resizeCanvas();
+      };
+    })();
+  </script>
+</body>
+</html>
